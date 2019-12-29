@@ -14,14 +14,16 @@ class Cap:
         self.cap = pyshark.FileCapture(file)
 
     def get_letter(self, package_id, stream):
-        try:
             if stream is None:
                 data_limiter = 9
                 packages = list()
             else:
                 data_limiter = stream.data_limiter
                 packages = stream.packages
-            payload = str(self.cap[package_id - 1].http2.headers_path)
+            try:
+                payload = str(self.cap[package_id - 1].http2.headers_path)
+            except Retransmission:
+                raise Retransmission
             letter_start_point = payload.find("search?q=") + data_limiter
             letter = payload[letter_start_point + len(packages): - (len(payload) - letter_start_point) + len(packages)+1]
 
@@ -40,8 +42,3 @@ class Cap:
                     print("Error occurred in methode get_letter in Class cap. Maybe Index out of bounds.")
 
             return letter
-        except:
-            # Retransmitted Package
-            # OR
-            # No rights to grab decrypted package
-            raise Retransmission

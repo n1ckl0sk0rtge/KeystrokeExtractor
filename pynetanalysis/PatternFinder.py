@@ -15,7 +15,7 @@ def is_new_stream(p_package, a_package, conf):
         if start_package_ranges[0] > len(p_package) >= start_package_ranges[1] and post_package_ranges[0] > len(a_package) > post_package_ranges[1] and len(p_package) > len(a_package):
             return True
 
-    if conf.system == "android":
+    if conf.system == "mobile":
         return new_stream_for_android()
     else:
         return new_stream_for_desktop()
@@ -46,7 +46,7 @@ def is_second_package_of_stream(stream, a_package, conf):
         if followed_package_ranges[0] > len(a_package) > followed_package_ranges[1]:
             return True
 
-    if conf.system == "android":
+    if conf.system == "mobile":
         return is_second_package_of_stream_for_android()
     else:
         return is_second_package_of_stream_for_desktop()
@@ -81,7 +81,7 @@ def is_next_package(stream, a_package, conf):
         if len(stream.packages[-1]) + window_to_next_package >= len(a_package) >= len(stream.packages[-1]) or (len(stream.packages[-1]) - 1 <= len(a_package) <= len(stream.packages[-1])):
             return True
 
-    if conf.system == "android":
+    if conf.system == "mobile":
         if len(stream.packages[-1]) >= 287:
             return is_next_package_for_android_special()
         else:

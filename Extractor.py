@@ -8,8 +8,9 @@ from scapy.layers.inet6 import IPv6
 from termcolor import colored
 
 parser = argparse.ArgumentParser(description='command line options')
-parser.add_argument('--pcap', dest='pcapinput', action='store', default="/Users/nkoertge/Desktop/pc_usb_keyboard_nk_03.pcap", help='PCAP file to process')
-parser.add_argument('--conf', dest='conf', action='store', default="desktop.conf", help='Configfile')
+parser.add_argument('--pcap', dest='pcapinput', action='store', default="/Users/nkoertge/Documents/001_StudienDocs/07_WiSe 2019-2020/Bachelorarbeit/_data/pcap_data/IOS_NK_03.pcap", help='PCAP file to process')
+parser.add_argument('--conf', dest='conf', action='store', default="ios.conf", help='Configfile')
+parser.add_argument('--hackmode', dest='h_mode', action='store', default="False", help='')
 parser_result = parser.parse_args()
 packages = scapy.utils.rdpcap(parser_result.pcapinput)
 cap = Netshark.Cap(parser_result.pcapinput)
@@ -33,6 +34,7 @@ destination_ip.add('2a00:1450:4005:803::2004')
 destination_ip.add('2a00:1450:4001:818::2004')
 destination_ip.add('2a00:1450:4001:808::2004')
 destination_ip.add('172.217.19.67')
+destination_ip.add('192.168.0.6')
 
 
 def get_ip_version():
@@ -62,6 +64,9 @@ def save_and_remove_stream(stream):
     if not stream.is_faulty(input_phrase):
         arff_streams += stream.to_arff_format()
         arff_classes.add(str(stream.source_ip))
+    elif parser_result.h_mode is True:
+        arff_streams += stream.to_arff_format()
+        arff_classes.add(str(stream.source_ip))
     keystroke_stream.remove(stream)
 
 
@@ -69,23 +74,40 @@ def lookup_for_new_stream():
     global reference_stream, arff_streams, arff_classes, reference_package
 
     if reference_package is not None and PatternFinder.is_new_stream(reference_package, package, conf):
-        # ist einmal ein Anfang gefunden, dann ignoriert er für die nächsten 5 packete, ob diese auch ein neuwer stream sein kann
+        # ist einmal ein Anfang gefunden, dann ignoriere für die nächsten 5 packete, ob diese auch ein neuer stream sein können
         if reference_stream is not None:
-            if len(reference_stream.packages) <= 5 and not reference_stream.faulty:
+            if len(reference_stream.packages) <= 5:
                 return False
         if not PatternFinder.is_stream_from_new_source(keystroke_stream, package):
             remove_stream = [stream for stream in keystroke_stream if stream.source_ip == package[get_ip_version()].src][0]
             save_and_remove_stream(remove_stream)
         try:
-            keystroke = cap.get_letter(reference_package_id, None)
+            if conf.system == "desktop":
+                keystroke = cap.get_letter(reference_package_id, None)
+            elif conf.system == "mobile":
+                keystroke = cap.get_letter(package_id, None)
+            else:
+                conf.throw_error("system", conf.system)
+                return False
         except:
             # Retransmitted Package
             # OR
             # No rights to grab decrypted package
+            if parser_result.h_mode is True:
+                keystroke = "?"
+            else:
+                return False
+
+        if conf.system == "desktop":
+            reference_stream = Stream.Stream(reference_package)
+            reference_stream.log(keystroke, reference_package_id, reference_package, input_phrase)
+        elif conf.system == "mobile":
+            reference_stream = Stream.Stream(package)
+            reference_stream.log(keystroke, package_id, package, input_phrase)
+        else:
+            conf.throw_error("system", conf.system)
             return False
-        reference_stream = Stream.Stream(reference_package)
         keystroke_stream.add(reference_stream)
-        reference_stream.log(keystroke, reference_package_id, reference_package, input_phrase)
         return True
 
 
@@ -95,6 +117,8 @@ def lookup_for_new_package_for_current_stream():
     def not_in_stream():
         global reference_stream, arff_streams, arff_classes, reference_package
         if current_stream.package_counter >= conf.fautly_stream_counter and len(current_stream.packages) < len(input_phrase) - 3:
+                                                                            # Durch diese Bediengung wird ein gültiger Stream automatisch
+                                                                            # in die Arff-Datei geschreiben, sonst händisch
             print(colored("remove faulty stream...", 'green'))
             keystroke_stream.remove(current_stream)
             reference_stream = None
@@ -110,7 +134,11 @@ def lookup_for_new_package_for_current_stream():
             # Retransmitted Package
             # OR
             # No rights to grab decrypted package
-            return not_in_stream()
+            if parser_result.h_mode is True:
+                keystroke = "?"
+            else:
+                return not_in_stream()
+
         current_stream.packages.append(package)
         current_stream.package_counter = 0
         try:
@@ -125,7 +153,11 @@ def lookup_for_new_package_for_current_stream():
             # Retransmitted Package
             # OR
             # No rights to grab decrypted package
-            return not_in_stream()
+            if parser_result.h_mode is True:
+                keystroke = "?"
+            else:
+                return not_in_stream()
+
         current_stream.packages.append(package)
         current_stream.package_counter = 0
         try:
@@ -152,8 +184,11 @@ for package in packages:
     except:
         pass
 
-
-arff_streams += [stream.to_arff_format() for stream in keystroke_stream if not stream.is_faulty(input_phrase)]
-arff_classes.intersection(set([str(stream.source_ip) for stream in keystroke_stream if not stream.is_faulty(input_phrase)]))
+if parser_result.h_mode is True:
+    arff_streams += [stream.to_arff_format() for stream in keystroke_stream]
+    arff_classes.intersection(set([str(stream.source_ip) for stream in keystroke_stream]))
+else:
+    arff_streams += [stream.to_arff_format() for stream in keystroke_stream if not stream.is_faulty(input_phrase)]
+    arff_classes.intersection(set([str(stream.source_ip) for stream in keystroke_stream if not stream.is_faulty(input_phrase)]))
 
 Arff.create_arff_file(parser_result.pcapinput[:-5], len(input_phrase), arff_streams, arff_classes)
