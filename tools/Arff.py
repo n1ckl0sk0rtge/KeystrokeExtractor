@@ -3,7 +3,7 @@ from termcolor import colored
 
 def create_arff_file(filename, number_of_attrib, data, classes):
     file = open(filename + ".arff", "w+")
-    file.write("@Relation typing-" + filename + "\n")
+    file.write("@Relation typing-" + filename.split("/")[-1] + "\n")
     for i in range(1, number_of_attrib):
         file.write("@ATTRIBUTE timestamp" + str(i) + " real" + "\n")
 

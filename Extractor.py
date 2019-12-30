@@ -1,6 +1,7 @@
 import argparse
 from pynetanalysis import PatternFinder, Stream, Netshark
 from tools import Arff, ConfigLoader
+from statistic import Histogram, Barchart
 from scapy.all import *
 from scapy.layers.dns import DNSRR
 from scapy.layers.inet import TCP, IP
@@ -8,8 +9,8 @@ from scapy.layers.inet6 import IPv6
 from termcolor import colored
 
 parser = argparse.ArgumentParser(description='command line options')
-parser.add_argument('--pcap', dest='pcapinput', action='store', default="/Users/nkoertge/Documents/001_StudienDocs/07_WiSe 2019-2020/Bachelorarbeit/_data/pcap_data/IOS_NK_03.pcap", help='PCAP file to process')
-parser.add_argument('--conf', dest='conf', action='store', default="ios.conf", help='Configfile')
+parser.add_argument('--pcap', dest='pcapinput', action='store', default="/Users/nkoertge/Desktop/long_phrase_2.pcap", help='PCAP file to process')
+parser.add_argument('--conf', dest='conf', action='store', default="/Users/nkoertge/Desktop/long_phrase copy.conf", help='Configfile')
 parser.add_argument('--hackmode', dest='h_mode', action='store', default="False", help='')
 parser_result = parser.parse_args()
 packages = scapy.utils.rdpcap(parser_result.pcapinput)
@@ -29,10 +30,14 @@ reference_package_id = 0
 reference_stream = None
 arff_streams = list()
 arff_classes = set()
+instances = 0
+hist = Histogram.Histogram(normalize=True, interval=0.02)
+dic = str()
 
 destination_ip.add('2a00:1450:4005:803::2004')
 destination_ip.add('2a00:1450:4001:818::2004')
 destination_ip.add('2a00:1450:4001:808::2004')
+destination_ip.add('2a00:1450:4001:817::2004')
 destination_ip.add('172.217.19.67')
 destination_ip.add('192.168.0.6')
 
@@ -59,15 +64,15 @@ def is_dns_request(p_packet):
         pass
 
 
-def save_and_remove_stream(stream):
-    global arff_classes, arff_streams, instances
-    if not stream.is_faulty(input_phrase):
+def save_stream(stream):
+    global arff_classes, arff_streams, instances, dic
+    if not stream.is_faulty(input_phrase) or parser_result.h_mode is True:
+        instances += 1
         arff_streams += stream.to_arff_format()
         arff_classes.add(str(stream.source_ip))
-    elif parser_result.h_mode is True:
-        arff_streams += stream.to_arff_format()
-        arff_classes.add(str(stream.source_ip))
-    keystroke_stream.remove(stream)
+        dic += stream.create_dictionary()
+        # Add stream to histogram
+        hist.add_data_to_histogram(stream.to_list())
 
 
 def lookup_for_new_stream():
@@ -80,7 +85,8 @@ def lookup_for_new_stream():
                 return False
         if not PatternFinder.is_stream_from_new_source(keystroke_stream, package):
             remove_stream = [stream for stream in keystroke_stream if stream.source_ip == package[get_ip_version()].src][0]
-            save_and_remove_stream(remove_stream)
+            save_stream(remove_stream)
+            keystroke_stream.remove(remove_stream)
         try:
             if conf.system == "desktop":
                 keystroke = cap.get_letter(reference_package_id, None)
@@ -99,10 +105,10 @@ def lookup_for_new_stream():
                 return False
 
         if conf.system == "desktop":
-            reference_stream = Stream.Stream(reference_package)
+            reference_stream = Stream.Stream(reference_package, keystroke)
             reference_stream.log(keystroke, reference_package_id, reference_package, input_phrase)
         elif conf.system == "mobile":
-            reference_stream = Stream.Stream(package)
+            reference_stream = Stream.Stream(package, keystroke)
             reference_stream.log(keystroke, package_id, package, input_phrase)
         else:
             conf.throw_error("system", conf.system)
@@ -139,7 +145,7 @@ def lookup_for_new_package_for_current_stream():
             else:
                 return not_in_stream()
 
-        current_stream.packages.append(package)
+        current_stream.add_package_to_stream(package, keystroke)
         current_stream.package_counter = 0
         try:
             current_stream.log(keystroke, package_id, package, input_phrase)
@@ -158,7 +164,7 @@ def lookup_for_new_package_for_current_stream():
             else:
                 return not_in_stream()
 
-        current_stream.packages.append(package)
+        current_stream.add_package_to_stream(package, keystroke)
         current_stream.package_counter = 0
         try:
             current_stream.log(keystroke, package_id, package, input_phrase)
@@ -184,11 +190,16 @@ for package in packages:
     except:
         pass
 
-if parser_result.h_mode is True:
-    arff_streams += [stream.to_arff_format() for stream in keystroke_stream]
-    arff_classes.intersection(set([str(stream.source_ip) for stream in keystroke_stream]))
-else:
-    arff_streams += [stream.to_arff_format() for stream in keystroke_stream if not stream.is_faulty(input_phrase)]
-    arff_classes.intersection(set([str(stream.source_ip) for stream in keystroke_stream if not stream.is_faulty(input_phrase)]))
+while len(keystroke_stream) != 0:
+    save_stream(keystroke_stream.pop())
 
+# plot hist
+hist.plot()
+
+print("Found " + str(instances) + " streams.")
 Arff.create_arff_file(parser_result.pcapinput[:-5], len(input_phrase), arff_streams, arff_classes)
+
+file = open(parser_result.pcapinput.split("/")[-1][:-5] + ".dic", 'w+')
+file.write(dic)
+file.close()
+

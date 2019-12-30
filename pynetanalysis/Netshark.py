@@ -1,6 +1,6 @@
 import pyshark
 
-html_to_asci_dictionary = {"%20": " ", "%2C": ",", "%C3%A4": "ä", "%C3%BC": "ü"}
+html_to_asci_dictionary = {"%20": " ", "%2C": ",", "%C3%A4": "ä", "%C3%BC": "ü", "%C3%9F": "ß"}
 
 
 class Retransmission(Exception):
