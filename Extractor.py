@@ -32,6 +32,7 @@ arff_streams = list()
 arff_classes = set()
 instances = 0
 hist = Histogram.Histogram(normalize=True, interval=0.02)
+bar = Barchart.Barchart()
 dic = str()
 
 destination_ip.add('2a00:1450:4005:803::2004')
@@ -70,9 +71,10 @@ def save_stream(stream):
         instances += 1
         arff_streams += stream.to_arff_format()
         arff_classes.add(str(stream.source_ip))
-        dic += stream.create_dictionary()
+        # dic += stream.create_dictionary()
         # Add stream to histogram
         hist.add_data_to_histogram(stream.to_list())
+        bar.add_data_to_barchart(stream.to_list())
 
 
 def lookup_for_new_stream():
@@ -195,11 +197,12 @@ while len(keystroke_stream) != 0:
 
 # plot hist
 hist.plot()
+bar.plot()
 
-print("Found " + str(instances) + " streams.")
+print(colored("\nFound " + str(instances) + " streams.", "green"))
 Arff.create_arff_file(parser_result.pcapinput[:-5], len(input_phrase), arff_streams, arff_classes)
 
-file = open(parser_result.pcapinput.split("/")[-1][:-5] + ".dic", 'w+')
-file.write(dic)
-file.close()
+# file = open(parser_result.pcapinput.split("/")[-1][:-5] + ".dic", 'w+')
+# file.write(dic)
+# file.close()
 

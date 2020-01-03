@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from termcolor import colored
 
 
 class Histogram:
@@ -27,10 +28,10 @@ class Histogram:
                     normelizer = item.get_height()
             for item in p:
                 item.set_height(item.get_height()/normelizer)
-        print("Plot:")
-        print("Interval: " + str(1/self.bins))
-        print("Instances: " + str(len(self.hist_data)))
-        print("Bins: " + str(self.bins))
+        print(colored("\nHistogramPlot:", "green"))
+        print("Interval:    " + str(1/self.bins))
+        print("Instances:   " + str(len(self.hist_data)))
+        print("Bins:    " + str(self.bins))
         plt.show()
 
 
