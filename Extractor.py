@@ -1,7 +1,6 @@
 import argparse
-from pynetanalysis import PatternFinder, Stream, Netshark
+from pynetanalysis import PatternFinder, Stream, Netshark, ExtendedPackage, PackageBuffer
 from tools import Arff, ConfigLoader
-from statistic import Histogram, Barchart
 from scapy.all import *
 from scapy.layers.dns import DNSRR
 from scapy.layers.inet import TCP, IP
@@ -9,38 +8,40 @@ from scapy.layers.inet6 import IPv6
 from termcolor import colored
 
 parser = argparse.ArgumentParser(description='command line options')
-parser.add_argument('--pcap', dest='pcapinput', action='store', default="/Users/nkoertge/Desktop/long_phrase_2.pcap", help='PCAP file to process')
-parser.add_argument('--conf', dest='conf', action='store', default="/Users/nkoertge/Desktop/long_phrase copy.conf", help='Configfile')
-parser.add_argument('--hackmode', dest='h_mode', action='store', default="False", help='')
+parser.add_argument('--pcap', dest='pcapinput', action='store', default="/Users/nkoertge/Desktop/test.pcap", help='PCAP file to process')
+parser.add_argument('--conf', dest='conf', action='store', default="vpn.conf", help='Configfile')
+parser.add_argument('--hackmode', dest='h_mode', action='store', default=True, help='')
 parser_result = parser.parse_args()
 packages = scapy.utils.rdpcap(parser_result.pcapinput)
 cap = Netshark.Cap(parser_result.pcapinput)
 
 conf = ConfigLoader.Config(parser_result.conf)
 ip_version = conf.get_ipversion()
-port = conf.get_port()
 input_phrase = conf.get_inputphrase()
 
 
 package_id = 0
 destination_ip = set()
 keystroke_stream = set()
-reference_package = None
-reference_package_id = 0
+package_buffer = PackageBuffer.PackageBuffer(size=1)
 reference_stream = None
 arff_streams = list()
 arff_classes = set()
 instances = 0
-hist = Histogram.Histogram(normalize=True, interval=0.02)
-bar = Barchart.Barchart()
 dic = str()
 
+# Google IPv6
 destination_ip.add('2a00:1450:4005:803::2004')
 destination_ip.add('2a00:1450:4001:818::2004')
 destination_ip.add('2a00:1450:4001:808::2004')
 destination_ip.add('2a00:1450:4001:817::2004')
+# Google IPv4
 destination_ip.add('172.217.19.67')
+# Proxy
 destination_ip.add('192.168.0.6')
+# VPN
+destination_ip.add('141.44.225.215')
+destination_ip.add('141.44.227.239')
 
 
 def get_ip_version():
@@ -72,27 +73,24 @@ def save_stream(stream):
         arff_streams += stream.to_arff_format()
         arff_classes.add(str(stream.source_ip))
         # dic += stream.create_dictionary()
-        # Add stream to histogram
-        hist.add_data_to_histogram(stream.to_list())
-        bar.add_data_to_barchart(stream.to_list())
 
 
 def lookup_for_new_stream():
-    global reference_stream, arff_streams, arff_classes, reference_package
+    global reference_stream, arff_streams, arff_classes
 
-    if reference_package is not None and PatternFinder.is_new_stream(reference_package, package, conf):
+    if package_buffer.get_last_as_package() is not None and PatternFinder.is_new_stream(package_buffer, package, conf):
         # ist einmal ein Anfang gefunden, dann ignoriere für die nächsten 5 packete, ob diese auch ein neuer stream sein können
         if reference_stream is not None:
             if len(reference_stream.packages) <= 5:
                 return False
-        if not PatternFinder.is_stream_from_new_source(keystroke_stream, package):
+        if not PatternFinder.is_stream_from_new_source(keystroke_stream, package) and conf.system != "vpn":
             remove_stream = [stream for stream in keystroke_stream if stream.source_ip == package[get_ip_version()].src][0]
             save_stream(remove_stream)
             keystroke_stream.remove(remove_stream)
         try:
             if conf.system == "desktop":
-                keystroke = cap.get_letter(reference_package_id, None)
-            elif conf.system == "mobile":
+                keystroke = cap.get_letter(package_buffer.get_last_as_package_id(), None)
+            elif conf.system == "mobile" or conf.system == "vpn":
                 keystroke = cap.get_letter(package_id, None)
             else:
                 conf.throw_error("system", conf.system)
@@ -107,9 +105,9 @@ def lookup_for_new_stream():
                 return False
 
         if conf.system == "desktop":
-            reference_stream = Stream.Stream(reference_package, keystroke)
-            reference_stream.log(keystroke, reference_package_id, reference_package, input_phrase)
-        elif conf.system == "mobile":
+            reference_stream = Stream.Stream(package_buffer.get_last_as_package(), keystroke)
+            reference_stream.log(keystroke, package_buffer.get_last_as_package_id(), package_buffer.get_last_as_package(), input_phrase)
+        elif conf.system == "mobile" or conf.system == "vpn":
             reference_stream = Stream.Stream(package, keystroke)
             reference_stream.log(keystroke, package_id, package, input_phrase)
         else:
@@ -123,7 +121,7 @@ def lookup_for_new_package_for_current_stream():
     current_stream = [stream for stream in keystroke_stream if stream.source_ip == package[get_ip_version()].src][0]
 
     def not_in_stream():
-        global reference_stream, arff_streams, arff_classes, reference_package
+        global reference_stream, arff_streams, arff_classes
         if current_stream.package_counter >= conf.fautly_stream_counter and len(current_stream.packages) < len(input_phrase) - 3:
                                                                             # Durch diese Bediengung wird ein gültiger Stream automatisch
                                                                             # in die Arff-Datei geschreiben, sonst händisch
@@ -135,7 +133,7 @@ def lookup_for_new_package_for_current_stream():
             # print(current_stream.package_counter)
         return False
 
-    if len(current_stream.packages) == 1 and PatternFinder.is_second_package_of_stream(current_stream, package, conf):
+    if len(current_stream.packages) == 1 and PatternFinder.is_second_package_of_stream(current_stream, package_buffer, package, conf):
         try:
             keystroke = cap.get_letter(package_id, current_stream)
         except:
@@ -154,7 +152,7 @@ def lookup_for_new_package_for_current_stream():
         except:
             current_stream.packages.remove(current_stream.packages[-1])
             return not_in_stream()
-    elif PatternFinder.is_next_package(current_stream, package, conf):
+    elif PatternFinder.is_next_package(current_stream, package_buffer, package, conf):
         try:
             keystroke = cap.get_letter(package_id, current_stream)
         except:
@@ -182,22 +180,17 @@ for package in packages:
     is_dns_request(package)
 
     try:
-        if package.haslayer(Raw) and package[TCP].dport == port and package[get_ip_version()].dst in destination_ip:
+        if package.haslayer(Raw) and conf.port_validation(package[TCP].dport) and package[get_ip_version()].dst in destination_ip:
             # is a new stream
             if not lookup_for_new_stream() and len(keystroke_stream) >= 1:
                 lookup_for_new_package_for_current_stream()
 
-            reference_package = package
-            reference_package_id = package_id
+            package_buffer.add(ExtendedPackage.ExtendedPackage(package, package_id))
     except:
         pass
 
 while len(keystroke_stream) != 0:
     save_stream(keystroke_stream.pop())
-
-# plot hist
-hist.plot()
-bar.plot()
 
 print(colored("\nFound " + str(instances) + " streams.", "green"))
 Arff.create_arff_file(parser_result.pcapinput[:-5], len(input_phrase), arff_streams, arff_classes)

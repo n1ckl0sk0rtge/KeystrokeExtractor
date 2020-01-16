@@ -1,6 +1,6 @@
 
 
-def is_new_stream(p_package, a_package, conf):
+def is_new_stream(p_buffer, a_package, conf):
     def new_stream_for_android():
         start_package_ranges = conf.get_start_package_ranges()
         for ranges in start_package_ranges:
@@ -12,11 +12,20 @@ def is_new_stream(p_package, a_package, conf):
     def new_stream_for_desktop():
         start_package_ranges = conf.get_start_package_ranges()
         post_package_ranges = conf.get_post_package_ranges()
-        if start_package_ranges[0] > len(p_package) >= start_package_ranges[1] and post_package_ranges[0] > len(a_package) > post_package_ranges[1] and len(p_package) > len(a_package):
+        if start_package_ranges[0] > len(p_buffer.get_last_as_package()) >= start_package_ranges[1] and post_package_ranges[0] > len(a_package) > post_package_ranges[1] and len(p_buffer.get_last_as_package()) > len(a_package):
             return True
+
+    def new_stream_for_vpn():
+        start_package_ranges = conf.get_start_package_ranges()
+        post_package_ranges = conf.get_post_package_ranges()
+        for p in p_buffer:
+            if start_package_ranges[0] > len(p.package) >= start_package_ranges[1] and post_package_ranges[0] > len(a_package) > post_package_ranges[1]:
+                return True
 
     if conf.system == "mobile":
         return new_stream_for_android()
+    elif conf.system == "vpn":
+        return new_stream_for_vpn()
     else:
         return new_stream_for_desktop()
 
@@ -32,14 +41,14 @@ def is_stream_from_new_source(keystroke_stream, p_package):
     return True
 
 
-def is_second_package_of_stream(stream, a_package, conf):
+def is_second_package_of_stream(stream, p_buffer, a_package, conf):
     def is_second_package_of_stream_for_android():
         followed_package_ranges = conf.get_followed_package_ranges()
         for ranges in followed_package_ranges:
             if ranges[0] <= len(a_package) <= ranges[1]:
                 return True
         else:
-            return is_next_package(stream, a_package, conf)
+            return is_next_package(stream, p_buffer, a_package, conf)
 
     def is_second_package_of_stream_for_desktop():
         followed_package_ranges = conf.get_followed_package_ranges()
@@ -52,7 +61,7 @@ def is_second_package_of_stream(stream, a_package, conf):
         return is_second_package_of_stream_for_desktop()
 
 
-def is_next_package(stream, a_package, conf):
+def is_next_package(stream, p_buffer, a_package, conf):
     start_package_range = conf.get_start_package_ranges()[0]
     window_to_next_package = conf.get_window_to_next_package()
     followed_package_ranges = conf.get_followed_package_ranges()
@@ -78,13 +87,20 @@ def is_next_package(stream, a_package, conf):
                 return True
 
     def is_next_package_for_desktop():
-        if len(stream.packages[-1]) + window_to_next_package >= len(a_package) >= len(stream.packages[-1]) or (len(stream.packages[-1]) - 1 <= len(a_package) <= len(stream.packages[-1])):
+        if len(stream.packages[-1]) + window_to_next_package >= len(a_package) >= len(stream.packages[-1]) or (len(stream.packages[-1]) - window_to_next_package <= len(a_package) <= len(stream.packages[-1])):
             return True
+
+    def is_next_package_for_vpn():
+        if 180 >= len(p_buffer.get_last_as_package()) >= 110:
+            if len(stream.packages[-1]) + window_to_next_package >= len(a_package) >= len(stream.packages[-1]) or (len(stream.packages[-1]) - window_to_next_package <= len(a_package) <= len(stream.packages[-1])):
+                return True
 
     if conf.system == "mobile":
         if len(stream.packages[-1]) >= 287:
             return is_next_package_for_android_special()
         else:
             return is_next_package_for_android()
-    else:
+    elif conf.system == "desktop":
         return is_next_package_for_desktop()
+    elif conf.system == "vpn":
+        return is_next_package_for_vpn()

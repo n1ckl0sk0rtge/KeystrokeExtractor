@@ -1,3 +1,4 @@
+import sys
 import xml.etree.ElementTree as xmlparser
 from termcolor import colored
 
@@ -20,14 +21,18 @@ class Config:
     def get_ipversion(self):
         return self.conf[0].text
 
-    def get_port(self):
-        return int(self.conf[1].text)
+    def port_validation(self, port):
+        if self.system == "desktop" or self.system == "mobile":
+            return bool(int(self.conf[1].text) == port)
+        elif self.system == "vpn":
+            p_range_list = [int(e) for e in self.conf[1].text.split("-")]
+            return bool(port in range(p_range_list[0], p_range_list[1]))
 
     def get_inputphrase(self):
         return str(self.conf[2].text)
 
     def get_start_package_ranges(self):
-        if self.system == "desktop":
+        if self.system == "desktop" or self.system == "vpn":
             conf = list()
             for e in self.start_package_ranges[0]:
                 conf.append(e)
@@ -38,13 +43,13 @@ class Config:
             self.throw_error("system", self.system)
 
     def get_post_package_ranges(self):
-        if self.system == "desktop" or self.system == "mobile":
+        if self.system == "desktop" or self.system == "mobile" or self.system == "vpn":
             return self.post_package_ranges
         else:
             self.throw_error("system", self.system)
 
     def get_followed_package_ranges(self):
-        if self.system == "desktop":
+        if self.system == "desktop" or self.system == "vpn":
             conf = list()
             for e in self.followed_package_ranges[0]:
                 conf.append(e)
@@ -83,7 +88,8 @@ class Config:
         self.fautly_stream_counter = int(fautly_stream_counter_conf.text)
 
     def throw_error(self, tag, value):
-        print(colored("Error at " + tag + " : Config is not valid - " + str(value), "red"))
+        print(colored(("Error at " + tag + " : Config is not valid - " + str(value), "red")))
+        sys.exit(("Error at " + tag + " : Config is not valid - " + str(value), "red"))
 
 
 
