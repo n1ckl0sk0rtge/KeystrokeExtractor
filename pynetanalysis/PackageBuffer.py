@@ -6,6 +6,7 @@ class PackageBuffer:
     def __init__(self, size):
         self.buffer = deque()
         self.size = size
+        self.p_element = int(self.size / 2)
 
     def buffer_cleaner(self):
         while len(self.buffer) > self.size:
@@ -40,4 +41,7 @@ class PackageBuffer:
             return self.buffer[-1].id
 
     def __str__(self):
-        return str(["package" for e in self.buffer])
+        return str([e for e in self.buffer])
+
+    def __len__(self):
+        return len(self.buffer)

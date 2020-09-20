@@ -29,8 +29,11 @@ class Stream:
         self.faulty = True
 
     def is_faulty(self, phrase):
-        if len(self.packages) < len(phrase) or self.faulty:
-            return True
+        if phrase is not None:
+            if len(self.packages) < len(phrase) or self.faulty:
+                return True
+        else:
+            return False
 
     def ip_version_check(self):
         if len(self.source_ip) > 16:
@@ -52,12 +55,15 @@ class Stream:
         return line
 
     def log(self, keystroke, package_id, package, phrase):
-        if keystroke == str(phrase[len(self.packages) - 1]):
-            print(keystroke + ' : ' + str(package_id) + ' length:=' + str(len(package)) + ' src=' + str(self.source_ip))
+        if phrase is not None:
+            if keystroke == str(phrase[len(self.packages) - 1]):
+                print(keystroke + ' : ' + str(package_id) + ' length:=' + str(len(package)) + ' src=' + str(self.source_ip))
+            else:
+                self.set_as_faulty()
+                c = colored(keystroke + ' : ' + str(package_id) + ' length:=' + str(len(package)) + ' src=' + str(self.source_ip), 'red')
+                print(c)
         else:
-            self.set_as_faulty()
-            c = colored(keystroke + ' : ' + str(package_id) + ' length:=' + str(len(package)) + ' src=' + str(self.source_ip), 'red')
-            print(c)
+            print(keystroke + ' : ' + str(package_id) + ' length:=' + str(len(package)) + ' src=' + str(self.source_ip))
 
     def create_dictionary(self):
         string = str()

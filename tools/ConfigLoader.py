@@ -18,43 +18,76 @@ class Config:
         self.fautly_stream_counter = 0
         self.extract_window_conf()
 
+    def is_desktop(self):
+        if self.conf[3].text == "desktop":
+            return True
+        else:
+            return False
+
+    def is_mobile(self):
+        if self.conf[3].text == "ios" or self.conf[3].text == "android":
+            return True
+        else:
+            return False
+
+    def is_ios(self):
+        if self.conf[3].text == "ios":
+            return True
+        else:
+            return False
+
+    def is_android(self):
+        if self.conf[3].text == "android":
+            return True
+        else:
+            return False
+
+    def is_vpn(self):
+        if self.conf[3].text == "vpn":
+            return True
+        else:
+            return False
+
     def get_ipversion(self):
         return self.conf[0].text
 
     def port_validation(self, port):
-        if self.system == "desktop" or self.system == "mobile":
+        if self.is_desktop() or self.is_mobile():
             return bool(int(self.conf[1].text) == port)
-        elif self.system == "vpn":
+        elif self.is_vpn():
             p_range_list = [int(e) for e in self.conf[1].text.split("-")]
             return bool(port in range(p_range_list[0], p_range_list[1]))
 
     def get_inputphrase(self):
-        return str(self.conf[2].text)
+        if self.conf[2].text is None:
+            return None
+        else:
+            return str(self.conf[2].text)
 
     def get_start_package_ranges(self):
-        if self.system == "desktop" or self.system == "vpn":
+        if self.is_desktop() or self.is_vpn():
             conf = list()
             for e in self.start_package_ranges[0]:
                 conf.append(e)
             return conf
-        elif self.system == "mobile":
+        elif self.is_mobile():
             return self.start_package_ranges
         else:
             self.throw_error("system", self.system)
 
     def get_post_package_ranges(self):
-        if self.system == "desktop" or self.system == "mobile" or self.system == "vpn":
+        if self.is_desktop() or self.is_mobile() or self.is_vpn():
             return self.post_package_ranges
         else:
             self.throw_error("system", self.system)
 
     def get_followed_package_ranges(self):
-        if self.system == "desktop" or self.system == "vpn":
+        if self.is_desktop() or self.is_vpn():
             conf = list()
             for e in self.followed_package_ranges[0]:
                 conf.append(e)
             return conf
-        elif self.system == "mobile":
+        elif self.is_mobile():
             return self.followed_package_ranges
         else:
             self.throw_error("system", self.system)
