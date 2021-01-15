@@ -1,50 +1,66 @@
+# relevant to provide input data over command line args
 import argparse
+# import own classes saved in a folder called pynetanalysis
+# Patternfinder: includes functionality to find the right packages from a given Stream
+# Stream: class, that represents streams of relevant packages
+# Netshark: provides functionality to extract the letter in regard to the detected package from a
+# decrypted pcap-file by using pyshark
+# ExtendedPackage: extends the Package-class provided by scapy with an additional member-var
+# for the corresponding keystroke
+# PackageBuffer: class, that represents a Buffer of packages
 from pynetanalysis import PatternFinder, Stream, Netshark, ExtendedPackage, PackageBuffer
+# import own classes saved in a folder called tools
+# Arff: class which alles the creation of files in ARFF-format with aa given Stream of packages
+# ConfigLoarder: provides functionality to load all information out of the given Conf-File
 from tools import Arff, ConfigLoader
+# import scapy to work with network data from pcap-file
 from scapy.all import *
 from scapy.layers.dns import DNSRR
 from scapy.layers.inet import TCP, IP
 from scapy.layers.inet6 import IPv6
+# to highlight some outputs to the console
 from termcolor import colored
 
+# using parser to read all relevant files
 parser = argparse.ArgumentParser(description='command line options')
-parser.add_argument('--pcap', dest='pcapinput', action='store', default="/Users/nkoertge/Desktop/test.pcap", help='PCAP file to process')
-parser.add_argument('--conf', dest='conf', action='store', default="desktop_firefox.conf", help='Configfile')
-parser.add_argument('--hackmode', dest='h_mode', action='store', default=True, help='')
+parser.add_argument('--pcap', dest='pcapinput', action='store', default="", help='PCAP file to process')
+parser.add_argument('--conf', dest='conf', action='store', default="", help='file that contains the configuration')
+parser.add_argument('--blindmode', dest='b_mode', action='store', default=True, help='boolean, that defines if blind mode is on or off')
 parser_result = parser.parse_args()
+
+# read network data from pcap-file with scapy
 packages = scapy.utils.rdpcap(parser_result.pcapinput)
+# providing network data to netshark as well, allowing to extract the corresponding letters from
+# decrypted traffic if available
 cap = Netshark.Cap(parser_result.pcapinput)
 
+# load config from Conf-file to variable conf
 conf = ConfigLoader.Config(parser_result.conf)
 ip_version = conf.get_ipversion()
 input_phrase = conf.get_inputphrase()
 
-
+# init variables
+# holds the id of the current package, counts up
 package_id = 0
+# set of destination ip's by which the network traffic will be pre-filtered
 destination_ip = set()
+# set of detected keystroke streams (could be more than one search request in a given network traffic)
 keystroke_stream = set()
+# init package buffer with size 5
 package_buffer = PackageBuffer.PackageBuffer(size=5)
+# init reference stream with none
 reference_stream = None
 arff_streams = list()
 arff_classes = set()
 instances = 0
-dic = str()
 
-# Google IPv6
+# adding some Google IPv6-addresses to the destination-ip set
 destination_ip.add('2a00:1450:4001:809::2004')
 destination_ip.add('2a00:1450:4001:818::2004')
 destination_ip.add('2a00:1450:4001:815::2004')
-destination_ip.add('2a00:1450:4001:81b::2004')
+destination_ip.add('2a00:1450:4001:808::2004')
 destination_ip.add('2a00:1450:4001:817::2004')
 destination_ip.add('2a00:1450:4001:81c::2004')
-# Google IPv4
-destination_ip.add('172.217.19.67')
-# Proxy
-destination_ip.add('192.168.0.6')
-destination_ip.add('192.168.0.7')
-# VPN
-destination_ip.add('141.44.225.215')
-destination_ip.add('141.44.227.239')
 
 
 def get_ip_version():
@@ -71,11 +87,10 @@ def is_dns_request(p_packet):
 
 def save_stream(stream):
     global arff_classes, arff_streams, instances, dic
-    if not stream.is_faulty(input_phrase) or parser_result.h_mode is True:
+    if not stream.is_faulty(input_phrase) or parser_result.b_mode is True:
         instances += 1
         arff_streams += stream.to_arff_format()
         arff_classes.add(str(stream.source_ip))
-        # dic += stream.create_dictionary()
 
 
 def lookup_for_new_stream():
@@ -104,7 +119,7 @@ def lookup_for_new_stream():
             # Retransmitted Package
             # OR
             # No rights to grab decrypted package
-            if parser_result.h_mode is True:
+            if parser_result.b_mode is True:
                 keystroke = "?"
             else:
                 return False
@@ -141,7 +156,7 @@ def lookup_for_new_package_for_current_stream():
 
     def not_in_stream():
         global reference_stream, arff_streams, arff_classes
-        if current_stream.package_counter >= conf.fautly_stream_counter and not conf.h_mode:
+        if current_stream.package_counter >= conf.fautly_stream_counter and not conf.b_mode:
             # and len(current_stream.packages) < len(input_phrase) - 3:
             # Durch diese Bediengung wird ein gültiger Stream automatisch
             # in die Arff-Datei geschreiben, sonst händisch
@@ -150,7 +165,6 @@ def lookup_for_new_package_for_current_stream():
             reference_stream = None
         else:
             current_stream.package_counter += 1
-            # print(current_stream.package_counter)
         return False
 
     if len(current_stream.packages) == 1 and PatternFinder.is_second_package_of_stream(current_stream, package_buffer, package, conf):
@@ -160,7 +174,7 @@ def lookup_for_new_package_for_current_stream():
             # Retransmitted Package
             # OR
             # No rights to grab decrypted package
-            if parser_result.h_mode is True:
+            if parser_result.b_mode is True:
                 keystroke = "?"
             else:
                 return not_in_stream()
@@ -179,7 +193,7 @@ def lookup_for_new_package_for_current_stream():
             # Retransmitted Package
             # OR
             # No rights to grab decrypted package
-            if parser_result.h_mode is True:
+            if parser_result.b is True:
                 keystroke = "?"
             else:
                 return not_in_stream()
@@ -197,21 +211,28 @@ def lookup_for_new_package_for_current_stream():
 
 ignor_next_package = False
 
+# loop through all packages of the given network stream
 for package in packages:
     package_id += 1
+    # check if the package is a dns request: in case, add the ip to the set of destination ip
     is_dns_request(package)
 
     try:
+        # filter by destination port, destination ip and if the package has a tcp-payload
         if package.haslayer(Raw) and conf.port_validation(package[TCP].dport) and package[get_ip_version()].dst in destination_ip:
-            # is a new stream
+            # look up if current package is the begin of a stream
             if not lookup_for_new_stream() and len(keystroke_stream) >= 1:
+                # if not a new stream and at least on stream was detected
                 lookup_for_new_package_for_current_stream()
 
+            # adding current package to the buffer stream
+            # except: special case for mobile
             if len(keystroke_stream) >= 1 and len(package) < 110 and conf.is_mobile():
                 ignor_next_package = True
             elif ignor_next_package is True:
                 ignor_next_package = False
             else:
+                # adding current package to the buffer stream
                 package_buffer.add(ExtendedPackage.ExtendedPackage(package, package_id))
     except:
         pass
@@ -221,8 +242,4 @@ while len(keystroke_stream) != 0:
 
 print(colored("\nFound " + str(instances) + " streams.", "green"))
 Arff.create_arff_file(parser_result.pcapinput[:-5], 0 if input_phrase is None else len(input_phrase), arff_streams, arff_classes)
-
-# file = open(parser_result.pcapinput.split("/")[-1][:-5] + ".dic", 'w+')
-# file.write(dic)
-# file.close()
 
