@@ -85,8 +85,9 @@ def is_dns_request(p_packet):
         pass
 
 
+# this function is called to save a detected and terminated stream
 def save_stream(stream):
-    global arff_classes, arff_streams, instances, dic
+    global arff_classes, arff_streams, instances
     if not stream.is_faulty(input_phrase) or parser_result.b_mode is True:
         instances += 1
         arff_streams += stream.to_arff_format()
@@ -97,9 +98,10 @@ def lookup_for_new_stream():
     global reference_stream, arff_streams, arff_classes
 
     if package_buffer.get_last_as_package() is not None and PatternFinder.is_new_stream(package_buffer, package, conf):
-        # ist einmal ein Anfang gefunden, dann ignoriere für die nächsten 5 packete, ob diese auch ein neuer stream sein können
+        # if there is a beginning of a new keystroke stream, no detection for new keystroke stream will be
+        # performed for the next 5 packages
         if reference_stream is not None:
-            if len(reference_stream.packages) <= 5: # andorid is 10
+            if len(reference_stream.packages) <= 5:
                 return False
         if not PatternFinder.is_stream_from_new_source(keystroke_stream, package) and not conf.is_vpn():
             remove_stream = [stream for stream in keystroke_stream if stream.source_ip == package[get_ip_version()].src][0]
@@ -116,9 +118,9 @@ def lookup_for_new_stream():
                 conf.throw_error("system", conf.system)
                 return False
         except:
-            # Retransmitted Package
+            # retransmitted Package
             # OR
-            # No rights to grab decrypted package
+            # no rights to grab letter/keystroke from decrypted package
             if parser_result.b_mode is True:
                 keystroke = "?"
             else:
@@ -157,9 +159,6 @@ def lookup_for_new_package_for_current_stream():
     def not_in_stream():
         global reference_stream, arff_streams, arff_classes
         if current_stream.package_counter >= conf.fautly_stream_counter and not conf.b_mode:
-            # and len(current_stream.packages) < len(input_phrase) - 3:
-            # Durch diese Bediengung wird ein gültiger Stream automatisch
-            # in die Arff-Datei geschreiben, sonst händisch
             print(colored("remove faulty stream...", 'green'))
             keystroke_stream.remove(current_stream)
             reference_stream = None
@@ -171,9 +170,9 @@ def lookup_for_new_package_for_current_stream():
         try:
             keystroke = cap.get_letter(package_id, current_stream)
         except:
-            # Retransmitted Package
+            # retransmitted Package
             # OR
-            # No rights to grab decrypted package
+            # no rights to grab letter/keystroke from decrypted package
             if parser_result.b_mode is True:
                 keystroke = "?"
             else:
@@ -190,9 +189,9 @@ def lookup_for_new_package_for_current_stream():
         try:
             keystroke = cap.get_letter(package_id, current_stream)
         except:
-            # Retransmitted Package
+            # retransmitted Package
             # OR
-            # No rights to grab decrypted package
+            # no rights to grab letter/keystroke from decrypted package
             if parser_result.b is True:
                 keystroke = "?"
             else:
@@ -209,7 +208,8 @@ def lookup_for_new_package_for_current_stream():
     return not_in_stream()
 
 
-ignor_next_package = False
+
+ignore_next_package = False
 
 # loop through all packages of the given network stream
 for package in packages:
@@ -228,9 +228,9 @@ for package in packages:
             # adding current package to the buffer stream
             # except: special case for mobile
             if len(keystroke_stream) >= 1 and len(package) < 110 and conf.is_mobile():
-                ignor_next_package = True
-            elif ignor_next_package is True:
-                ignor_next_package = False
+                ignore_next_package = True
+            elif ignore_next_package is True:
+                ignore_next_package = False
             else:
                 # adding current package to the buffer stream
                 package_buffer.add(ExtendedPackage.ExtendedPackage(package, package_id))
